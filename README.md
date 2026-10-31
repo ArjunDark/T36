@@ -1,4 +1,4 @@
-# AllAtOnce
+# T36
 
 > **Setting it up on two laptops?** Read [SETUP.md](SETUP.md) — it walks from a
 > clean **Windows** install to a running pass, including the firewall rule, the
