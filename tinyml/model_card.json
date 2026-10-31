@@ -1,0 +1,44 @@
+{
+  "name": "model_int8",
+  "file": "model_int8.onnx",
+  "version": "2.0.0",
+  "added": "2026-10-31",
+  "replaces": "v1 (154 kB, single per-pixel head, unvalidated)",
+  "architecture": {
+    "kind": "multi-head classifier",
+    "layers": "52 Conv, 10 GlobalAveragePool, 9 HardSigmoid, 4 Gemm",
+    "nodes": 395,
+    "file_bytes": 1341742,
+    "quantisation": "onnxruntime.quant (pre-processed), opset 13"
+  },
+  "io": {
+    "input":  { "name": "x",                "shape": ["batch", 3, 160, 160], "dtype": "float32", "range": "0-1" },
+    "outputs": {
+      "cloud_logit":      { "shape": ["batch", 1],   "meaning": "sigmoid -> cloud / not-cloud" },
+      "cloud_frac_logit": { "shape": ["batch", 1],   "meaning": "sigmoid -> cloud fraction 0-1" },
+      "class_logits":     { "shape": ["batch", 10],  "meaning": "softmax -> EuroSAT land-use class" },
+      "embedding":        { "shape": ["batch", 576], "meaning": "feature vector, reserved for stitching" }
+    }
+  },
+  "classes": ["AnnualCrop","Forest","HerbaceousVegetation","Highway","Industrial",
+              "Pasture","PermanentCrop","Residential","River","SeaLake"],
+  "measured": {
+    "accuracy_top1": 0.62,
+    "accuracy_basis": "100 patches from dataset/eurosat, 10 per class, random baseline 10%",
+    "per_class": {
+      "Residential": 1.0, "AnnualCrop": 0.8, "Forest": 0.8, "Industrial": 0.8,
+      "SeaLake": 0.8, "Highway": 0.7, "PermanentCrop": 0.5, "River": 0.4,
+      "HerbaceousVegetation": 0.3, "Pasture": 0.1
+    },
+    "cloud_heads": {
+      "cyclone_30pct_cloud": { "p_cloud": 0.31, "cloud_frac": 0.20, "histogram": 0.30 },
+      "dunes_clear":         { "p_cloud": 0.00, "cloud_frac": 0.00, "histogram": 0.00 },
+      "pivot_clear":         { "p_cloud": 0.00, "cloud_frac": 0.00, "histogram": 0.00 },
+      "snow_bright":         { "p_cloud": 0.00, "cloud_frac": 0.24, "histogram": 0.02 }
+    },
+    "activation_bytes_per_call": 309248
+  },
+  "known_weakness": "bright snow reads p_cloud 0.00 but cloud_frac 0.24 — the regression head mistakes bright ground for cloud. Trust p_cloud over cloud_frac on snow and ice.",
+  "status": "trained and validated on the bundled subset",
+  "used_for": "label, confidence and cloud probability travel to the ground as telemetry. Ranking still uses the calibrated feature scorer; promoting the model to drive the keep/discard decision is a deliberate change, not yet made."
+}

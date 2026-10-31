@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SAT-1 Ground Station</title>
+<style>
+  :root{
+    --bg:#070b12; --panel:#0d141f; --panel2:#111a27; --line:#1d2a3d;
+    --text:#dbe6f2; --dim:#7b8ea6; --dim2:#5a6b80;
+    --cyan:#38bdf8; --green:#34d399; --amber:#fbbf24; --red:#f87171;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{
+    background:var(--bg); color:var(--text);
+    font:14px/1.45 ui-monospace,"JetBrains Mono","DejaVu Sans Mono",monospace;
+    display:flex; flex-direction:column; height:100vh; overflow:hidden;
+  }
+
+  /* ---------- header ---------- */
+  header{
+    display:flex; align-items:center; gap:18px; flex-wrap:wrap;
+    padding:10px 16px; border-bottom:1px solid var(--line); background:var(--panel);
+    flex:0 0 auto;
+  }
+  .brand{font-weight:700; letter-spacing:.14em; color:var(--cyan)}
+  .brand small{color:var(--dim2); letter-spacing:.08em; font-weight:400; margin-left:8px}
+  .pill{
+    display:inline-flex; align-items:center; gap:6px;
+    padding:3px 10px; border:1px solid var(--line); border-radius:999px;
+    font-size:12px; color:var(--dim);
+  }
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--dim2)}
+  .dot.on{background:var(--green); box-shadow:0 0 8px var(--green)}
+  .dot.off{background:var(--red)}
+  .spacer{flex:1}
+  button{
+    font:inherit; font-size:12px; padding:5px 12px; cursor:pointer;
+    background:var(--panel2); color:var(--text);
+    border:1px solid var(--line); border-radius:5px;
+  }
+  button:hover{border-color:var(--cyan); color:var(--cyan)}
+  button.on{background:#0b2f3f; border-color:var(--cyan); color:var(--cyan)}
+
+  /* ---------- layout ---------- */
+  main{
+    flex:1 1 auto; min-height:0;
+    display:grid; grid-template-columns:minmax(0,1.55fr) minmax(280px,.85fr);
+    gap:10px; padding:10px;
+  }
+  .col{display:flex; flex-direction:column; gap:10px; min-height:0; min-width:0; overflow:hidden}
+
+  .panel{
+    background:var(--panel); border:1px solid var(--line); border-radius:7px;
+    display:flex; flex-direction:column; min-height:0; overflow:hidden;
+  }
+  .panel h2{
+    margin:0; padding:8px 12px; font-size:11px; letter-spacing:.14em;
+    color:var(--dim); font-weight:600; border-bottom:1px solid var(--line);
+    background:var(--panel2); flex:0 0 auto;
+  }
+  .panel .body{padding:12px; overflow:auto; min-height:0}
+  .panel .body > dl.kv{margin-bottom:4px}
+
+  /* image panel fills its column */
+  .image-panel{flex:1 1 auto; min-height:120px}
+  .image-panel .body{
+    padding:0; display:flex; align-items:center; justify-content:center;
+    background:#05080e; position:relative; overflow:hidden;
+  }
+  #frame{
+    width:100%; height:100%; object-fit:contain; display:block;
+    image-rendering:auto;
+  }
+  .empty{
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    flex-direction:column; gap:8px; color:var(--dim2); font-size:13px; text-align:center;
+    padding:20px;
+  }
+  .empty b{color:var(--dim); font-weight:600}
+
+  /* telemetry rows */
+  .kv{display:grid; grid-template-columns:auto 1fr; gap:3px 12px; font-size:12.5px}
+  .kv dt{color:var(--dim2)}
+  .kv dd{margin:0; text-align:right; color:var(--text); font-variant-numeric:tabular-nums}
+  .kv dd.hi{color:var(--cyan)}
+  .kv dd.ok{color:var(--green)}
+  .kv dd.warn{color:var(--amber)}
+
+  .meter{height:6px; background:#0a1119; border-radius:3px; overflow:hidden; margin:3px 0 9px}
+  .meter i{display:block; height:100%; background:linear-gradient(90deg,var(--cyan),var(--green)); width:0}
+
+  /* frame strip */
+  .strip{display:flex; gap:8px; overflow-x:auto; overflow-y:hidden;
+         padding:10px 12px; height:104px; flex:0 0 auto}
+  .thumb{
+    flex:0 0 auto; width:86px; border:1px solid var(--line); border-radius:5px;
+    overflow:hidden; cursor:pointer; background:#05080e;
+  }
+  .thumb img{width:100%; height:58px; object-fit:cover; display:block}
+  .thumb .cap{font-size:10px; padding:3px 4px; color:var(--dim2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .thumb.sel{border-color:var(--cyan)}
+  .thumb.alert{border-color:var(--amber)}
+
+  /* log */
+  .log-panel{flex:0 0 auto; max-height:34vh}
+  .log{font-size:12px; line-height:1.55}
+  .log div{display:flex; gap:9px; padding:1px 0; border-bottom:1px solid rgba(255,255,255,.03)}
+  .log .t{color:var(--dim2); flex:0 0 auto}
+  .log .tag{flex:0 0 auto; width:62px; color:var(--cyan)}
+  .log .tag.warn{color:var(--amber)}
+  .log .tag.err{color:var(--red)}
+  .log .msg{color:var(--text); min-width:0; word-break:break-word}
+
+  .classbar{display:flex; flex-direction:column; gap:3px; margin-top:12px; padding-bottom:4px}
+  .classbar .row{display:grid; grid-template-columns:92px 1fr 42px; gap:8px; align-items:center; font-size:11px}
+  .classbar .n{color:var(--dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .classbar .b{height:5px; background:#0a1119; border-radius:3px; overflow:hidden}
+  .classbar .b i{display:block; height:100%; background:var(--cyan)}
+  .classbar .p{text-align:right; color:var(--dim2); font-variant-numeric:tabular-nums}
+
+  @media (max-width:900px){
+    main{grid-template-columns:1fr; overflow:auto}
+    body{overflow:auto; height:auto; min-height:100vh}
+    .image-panel{min-height:44vh}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <span class="brand">SAT-1 <small>GROUND STATION</small></span>
+  <span class="pill"><span class="dot" id="link-dot"></span><span id="link-text">connecting</span></span>
+  <span class="pill" id="pass-pill">pass <b id="pass-left">--</b></span>
+  <span class="pill" id="phase-pill">phase <b id="phase-n">1</b></span>
+  <span class="spacer"></span>
+  <button id="btn-phase">start listening</button>
+</header>
+
+<main>
+  <div class="col">
+    <section class="panel image-panel">
+      <h2 id="frame-title">RECEIVED FRAME</h2>
+      <div class="body">
+        <img id="frame" alt="" style="display:none">
+        <div class="empty" id="frame-empty">
+          <b>Waiting for the downlink</b>
+          <span>The satellite has frames on board.<br>Nothing has crossed the link yet.</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>FRAMES RECEIVED <span id="frame-count" style="color:var(--dim2)">0</span></h2>
+      <div class="strip" id="strip"></div>
+    </section>
+  </div>
+
+  <div class="col">
+    <section class="panel">
+      <h2>TELEMETRY</h2>
+      <div class="body">
+        <dl class="kv">
+          <dt>link</dt>          <dd class="hi" id="t-kbps">--</dd>
+          <dt>queue</dt>         <dd id="t-queue">--</dd>
+          <dt>stored</dt>        <dd id="t-store">--</dd>
+          <dt>sent</dt>          <dd id="t-sent">--</dd>
+          <dt>tensor</dt>        <dd id="t-tensor">--</dd>
+          <dt>last frame</dt>    <dd id="t-last">--</dd>
+        </dl>
+        <div class="meter"><i id="m-store"></i></div>
+        <div class="meter"><i id="m-queue"></i></div>
+      </div>
+    </section>
+
+    <section class="panel" style="flex:1 1 auto">
+      <h2>LAST FRAME</h2>
+      <div class="body">
+        <dl class="kv">
+          <dt>class</dt>       <dd class="hi" id="f-class">--</dd>
+          <dt>confidence</dt>  <dd id="f-conf">--</dd>
+          <dt>cloud</dt>       <dd id="f-cloud">--</dd>
+          <dt>action</dt>      <dd id="f-action">--</dd>
+          <dt>priority</dt>    <dd id="f-prio">--</dd>
+          <dt>salience</dt>    <dd id="f-sal">--</dd>
+          <dt>novelty</dt>     <dd id="f-nov">--</dd>
+          <dt>size</dt>        <dd id="f-bytes">--</dd>
+          <dt>verify</dt>      <dd id="f-verify">--</dd>
+        </dl>
+        <div class="classbar" id="classbar"></div>
+      </div>
+    </section>
+  </div>
+</main>
+
+<section class="panel log-panel" style="margin:0 10px 10px">
+  <h2>EVENT LOG</h2>
+  <div class="body"><div class="log" id="log"></div></div>
+</section>
+
+<script>
+(function(){
+  'use strict';
+
+  var since = 0;
+  var frames = [];
+  var seen = {};
+  var selected = null;
+  var phase = 1;
+  var connected = null;
+  var lastSat = {};
+  var lastStore = {};
+  var verifyState = {};
+
+  function $(id){ return document.getElementById(id); }
+  function set(id, text, cls){
+    var el = $(id);
+    if (!el) return;
+    el.textContent = text;
+    if (cls !== undefined) el.className = cls;
+  }
+  function fmtB(n){
+    if (n == null) return '--';
+    return n >= 1048576 ? (n/1048576).toFixed(2) + ' MB' : (n/1024).toFixed(0) + ' kB';
+  }
+  function pad(n){ return String(n).padStart(2,'0'); }
+  function clock(s){
+    s = Math.max(0, Math.round(s||0));
+    return pad(Math.floor(s/60)) + ':' + pad(s%60);
+  }
+
+  function log(tag, msg, cls){
+    var el = $('log');
+    if (!el) return;
+    var d = document.createElement('div');
+    var t = new Date();
+    d.innerHTML = '<span class="t">' + pad(t.getHours()) + ':' + pad(t.getMinutes()) + ':' +
+                  pad(t.getSeconds()) + '</span>' +
+                  '<span class="tag ' + (cls||'') + '">' + tag + '</span>' +
+                  '<span class="msg"></span>';
+    d.querySelector('.msg').textContent = msg;
+    el.appendChild(d);
+    while (el.children.length > 120) el.removeChild(el.firstChild);
+    el.parentElement.scrollTop = el.parentElement.scrollHeight;
+  }
+
+  /* ---------------- rendering ---------------- */
+  function renderFrame(){
+    var f = selected || frames[frames.length-1];
+    var img = $('frame');
+    var empty = $('frame-empty');
+
+    if (!f){
+      img.style.display = 'none';
+      empty.style.display = 'flex';
+      $('frame-title').textContent = 'RECEIVED FRAME';
+      ['f-class','f-conf','f-cloud','f-action','f-prio','f-sal','f-nov','f-bytes','f-verify']
+        .forEach(function(id){ set(id,'--'); });
+      $('classbar').innerHTML = '';
+      return;
+    }
+
+    if (f.tr){
+      img.src = f.tr;
+      img.style.display = 'block';
+      empty.style.display = 'none';
+    } else {
+      img.style.display = 'none';
+      empty.style.display = 'flex';
+      empty.innerHTML = '<b style="color:var(--amber);font-size:15px">COORDINATE ALERT</b>' +
+        '<span style="color:var(--text)">' +
+        ((f.v && (f.v.label || f.v.scene)) || 'detection') + ' · ' +
+        (f.v && f.v.conf != null ? Math.round(f.v.conf) + '% confident' : '') +
+        '</span><span style="color:var(--dim2);max-width:320px">No image was sent. The ' +
+        'detection was confident enough that the coordinates alone were worth the bytes.</span>';
+    }
+
+    var v = f.v || {};
+    $('frame-title').textContent = 'RECEIVED FRAME  ·  ' + (f.i || '--');
+
+    set('f-class', v.label || v.scene || '--', 'hi');
+    set('f-conf', v.conf != null ? Number(v.conf).toFixed(1) + '%' : '--');
+    set('f-cloud', v.p_cloud != null ? Number(v.p_cloud).toFixed(2) : '--');
+    set('f-action', v.action || '--');
+    set('f-prio', v.prio != null ? Number(v.prio).toFixed(1) : '--');
+    set('f-sal', v.salience != null ? Number(v.salience).toFixed(3) : '--');
+    set('f-nov', v.novelty != null ? Number(v.novelty).toFixed(3) : '--');
+    if (f.kind === 'alert' && !f.b){
+      set('f-bytes', 'no pixels', 'ok');
+    } else {
+      set('f-bytes', fmtB(f.b));
+    }
+
+    var ver = verifyState[f.i];
+    set('f-verify', ver ? (ver.agree ? 'match' : 'differs: ' + ver.scene) : '--',
+        ver ? (ver.agree ? 'ok' : 'warn') : '');
+
+    var dist = v.classDist || {};
+    var keys = Object.keys(dist);
+    if (!keys.length){
+      $('classbar').innerHTML = '';
+    } else {
+      keys.sort(function(a,b){ return dist[b] - dist[a]; });
+      $('classbar').innerHTML = keys.slice(0,3).map(function(k){
+        var p = dist[k] || 0;
+        return '<div class="row"><span class="n">' + k + '</span>' +
+               '<span class="b"><i style="width:' + Math.min(100,p) + '%"></i></span>' +
+               '<span class="p">' + p.toFixed(0) + '%</span></div>';
+      }).join('');
+    }
+  }
+
+  function renderStrip(){
+    var el = $('strip');
+    set('frame-count', String(frames.length));
+    if (!frames.length){
+      el.innerHTML = '<span style="color:var(--dim2);font-size:12px;padding:6px">no frames yet</span>';
+      return;
+    }
+    el.innerHTML = frames.slice(-24).reverse().map(function(f){
+      var v = f.v || {};
+      var cls = 'thumb' + (selected === f ? ' sel' : '') + (v.alert ? ' alert' : '');
+      var src = f.tr || '';
+      var cap = (v.label || v.scene || 'frame').slice(0,14);
+      var inner = src
+        ? '<img src="' + src + '" alt="">'
+        : '<div style="height:58px;display:flex;align-items:center;justify-content:center;' +
+          'font-size:10px;color:var(--dim2)">ALERT</div>';
+      return '<div class="' + cls + '" data-i="' + f.i + '">' + inner +
+             '<div class="cap">' + cap + '</div></div>';
+    }).join('');
+  }
+
+  function renderTelemetry(){
+    var s = lastSat || {};
+    set('t-kbps', s.kbps != null ? Number(s.kbps).toFixed(0) + ' kbit/s' : '--', 'hi');
+    set('t-queue', s.queue != null ? s.queue + ' frames · ' + fmtB(s.queue_b) : '--');
+    set('t-store', lastStore && lastStore.used != null ? fmtB(lastStore.used) + ' / ' + fmtB(lastStore.cap) : '--');
+    var sentTxt = '--';
+    if (s.sent != null){
+      sentTxt = String(s.sent) + (s.degraded ? ' · ' + s.degraded + ' degraded' : '');
+    }
+    set('t-sent', sentTxt);
+    set('t-tensor', s.tensor_b != null ? (s.res + '² int8 · ' + fmtB(s.tensor_b)) : '--');
+    set('t-last', frames.length ? frames[frames.length-1].i : '--');
+
+    var cap = (lastStore && lastStore.cap) || 16*1024*1024;
+    var used = (lastStore && lastStore.used) || 0;
+    $('m-store').style.width = Math.min(100, 100*used/cap) + '%';
+    var qb = s.queue_b || 0;
+    $('m-queue').style.width = Math.min(100, 100*qb/(2*1024*1024)) + '%';
+
+    set('pass-left', s.pass === 'OPEN' ? clock(s.pass_s) + ' open' : clock(s.pass_s) + ' to open');
+  }
+
+  /* ---------------- network ---------------- */
+  function setLink(ok){
+    if (ok === connected) return;
+    connected = ok;
+    var dot = $('link-dot');
+    dot.className = 'dot ' + (ok ? 'on' : 'off');
+    set('link-text', ok ? 'link up' : 'no feed');
+    log(ok ? 'LINK' : 'LINK', ok ? 'ground server reachable' : 'feed unreachable', ok ? '' : 'err');
+  }
+
+  async function verify(f){
+    if (!f.tr) return;
+    try{
+      var res = await fetch('infer', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({path: f.tr, frame_id: f.i})
+      });
+      if (!res.ok) return;
+      var v = await res.json();
+      var agree = v.scene_class === ((f.v||{}).label || (f.v||{}).scene);
+      verifyState[f.i] = {agree: agree, scene: v.scene_class, conf: v.confidence};
+      log('VERIFY', (agree ? 'match · ' : 'differs · ') + v.scene_class + ' ' +
+          Math.round(v.confidence) + '% (ground)', agree ? '' : 'warn');
+      renderFrame();
+    } catch(e){}
+  }
+
+  async function poll(){
+    if (phase !== 2) return;
+    try{
+      var res = await fetch('feed?since=' + since, {cache:'no-store'});
+      if (!res.ok) throw new Error(res.status);
+      var data = await res.json();
+      setLink(true);
+
+      if (data.sat){ lastSat = data.sat; }
+      if (data.store){ lastStore = data.store; }
+
+      var incoming = data.frames || [];
+      for (var i=0;i<incoming.length;i++){
+        var f = incoming[i];
+        if (seen[f.i]) continue;
+        seen[f.i] = true;
+        since = Math.max(since, f.seq || 0);
+        frames.push(f);
+        log(f.kind === 'alert' ? 'ALERT' : 'FRAME',
+            (f.i||'?') + ' · ' + (((f.v||{}).label) || '') +
+            (f.v && f.v.conf != null ? ' ' + Math.round(f.v.conf) + '%' : ''),
+            f.kind === 'alert' ? 'warn' : '');
+        verify(f);
+      }
+
+      renderStrip();
+      renderFrame();
+      renderTelemetry();
+    } catch(e){
+      setLink(false);
+    }
+  }
+
+  /* ---------------- controls ---------------- */
+  function setPhase(n){
+    phase = n === 2 ? 2 : 1;
+    set('phase-n', String(phase));
+    $('btn-phase').textContent = phase === 2 ? 'stop listening' : 'start listening';
+    $('btn-phase').className = phase === 2 ? 'on' : '';
+    log('SYS', phase === 2 ? 'phase 2 · listening for the downlink'
+                          : 'phase 1 · standby, nothing received', phase === 2 ? '' : 'warn');
+    if (phase === 2) poll();
+  }
+
+  $('btn-phase').addEventListener('click', function(){
+    setPhase(phase === 2 ? 1 : 2);
+  });
+
+  $('strip').addEventListener('click', function(e){
+    var t = e.target.closest ? e.target.closest('.thumb') : null;
+    if (!t) return;
+    var id = t.getAttribute('data-i');
+    for (var i=0;i<frames.length;i++){
+      if (frames[i].i === id){ selected = frames[i]; break; }
+    }
+    renderStrip();
+    renderFrame();
+  });
+
+  window.addEventListener('resize', function(){ /* pure CSS layout, nothing to do */ });
+
+  log('SYS', 'ground station ready');
+
+  // ?phase=2 starts listening immediately, so the live view can be bookmarked
+  var wantPhase = 1;
+  try{
+    var q = new URLSearchParams(location.search);
+    if (q.get('phase') === '2') wantPhase = 2;
+  } catch(e){}
+  setPhase(wantPhase);
+  setInterval(poll, 1000);
+  setInterval(renderTelemetry, 1000);
+})();
+</script>
+</body>
+</html>
